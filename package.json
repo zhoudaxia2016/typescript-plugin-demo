@@ -1,0 +1,34 @@
+{
+  "name": "ts-plugin-test",
+  "version": "0.0.3",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": "git@github.com:HearTao/ts-string-literal-enum-plugin.git",
+  "author": "kingwl <kingwenlu@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/microsoft__typescript-etw": "^0.1.1",
+    "open-typescript": "^4.5.0-dev.20210906",
+    "prettier": "^2.2.1"
+  },
+  "scripts": {
+    "build": "tsc --watch",
+    "build:extension": "cd extension && yarn build",
+    "build:release": "yarn build:extension",
+    "bootstrap:demo": "cd tests/demo && yarn --no-lockfile",
+    "bootstrap:extension": "cd extension && yarn --no-lockfile",
+    "bootstrap:all": "yarn && yarn bootstrap:demo && yarn bootstrap:extension",
+    "bootstrap:release": "yarn bootstrap:extension",
+    "link:demo": "cd tests/demo && yarn link ts-string-literal-enum-plugin",
+    "link:extension": "cd extension && yarn link ts-string-literal-enum-plugin",
+    "link:all": "yarn link && yarn link:demo && yarn link:extension",
+    "lint": "prettier -c --config ./prettier.config.js ./src/**/*.{ts,tsx} ./tests/**/*.{ts,tsx}",
+    "prettier": "yarn lint --write"
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "typescript": "^4.4.4"
+  }
+}
