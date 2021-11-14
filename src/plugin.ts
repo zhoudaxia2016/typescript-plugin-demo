@@ -62,12 +62,11 @@ export default class StringLiteralEnumPlugin {
         const { file } = context
         // 获取当前节点
         const currentToken = this.getTargetInfo(file, this.getPositionOfPositionOrRange(positionOrRange))
-        this.log(Object.values(ACTIONS).filter(_ => _.match(this.typescript, currentToken)).map(_ => _.info))
         return [
           {
             name: refactorName,
             description: 'MyTsPlugin desc',
-            actions: Object.values(ACTIONS).filter(_ => _.match(this.typescript, currentToken)).map(_ => _.info)
+            actions: Object.values(ACTIONS).filter(_ => !!_.match(this.typescript, currentToken)).map(_ => _.info)
           }
         ]
       },
@@ -109,6 +108,17 @@ export default class StringLiteralEnumPlugin {
           return {
             edits: this.typescript.textChanges.ChangeTracker.with(textChangesContext, function(changeTracker) {
               changeTracker.replaceNode(file, currentToken, ts.createIdentifier('hello'))
+            })
+          }
+        }
+
+        if (ACTIONS.AddFunctionParameter.info.name === actionName && ACTIONS.AddFunctionParameter.match(ts, currentToken)) {
+          return {
+            edits: this.typescript.textChanges.ChangeTracker.with(textChangesContext, function(changeTracker) {
+              // TODO 删除as
+              const functionDeclaration = ACTIONS.AddFunctionParameter.matchReturnNode(ts, currentToken) as ts.FunctionDeclaration
+              const parameter = ts.factory.createParameterDeclaration(undefined, undefined, undefined, currentToken.escapedText.toString(), undefined, undefined)
+              changeTracker.replaceNode(file, functionDeclaration, ts.updateFunctionDeclaration(functionDeclaration, undefined, undefined, undefined, functionDeclaration.name, undefined, [...functionDeclaration.parameters, parameter], undefined, functionDeclaration.body))
             })
           }
         }
