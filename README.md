@@ -26,6 +26,15 @@
 lsp后端收到并分析返回结果（比如得到补全列表，得到定义位置）
 编辑器前端通过自己的ui系统展示结果，并等待用户其他操作
 
+
+lsp的意义在于让编辑器插件变得通用。比如要为`neovim`，`vscode`，`sublime`，`atom`写`typescript`,`python`，`c++`插件，我们要写`3*3`一共9个。
+使用lsp编写的插件只需要`3+3`一共6个。用时间复杂度来说就是：
+n为编辑器数量，m为语言数量，使用lsp将插件数量从`n*m`减少到了`n+m`
+
+
+为什么是`n+m`呢？
+因为`lsp`其实是一个前后端分离的架构，需要实现n个编辑器前端插件和m个语言服务插件。
+
 ### 简单例子
 ```Typescript
 function init(modules: { typescript: typeof import("typescript/lib/tsserverlibrary") }) {
@@ -64,6 +73,28 @@ function init(modules: { typescript: typeof import("typescript/lib/tsserverlibra
 
 操作`ast`其实可以参考各种`transformer`，因为原理是一样的。
 
+## 调试配置（暂时只会打log调试）
+
+### vscode
+参考[https://github.com/microsoft/TypeScript/wiki/Debugging-Language-Service-in-VS-Code](https://github.com/microsoft/TypeScript/wiki/Debugging-Language-Service-in-VS-Code)
+没有试过
+
+### neovim
+> 前提是已经lsp已经配置好，以下配置wsl运行通过
+1. `npm link` typescript plugin模块链接到全局（即`NODE_PATH`）
+2. [built-in-lspconfig](https://github.com/neovim/nvim-lspconfig) `tsserver`配置修改：
+```lua
+local bin_name = 'typescript-language-server'
+local getPath = function (str)
+  return str:match("(.*/)")
+end
+lspconfig.tsserver.setup {
+  init_options = { plugins = {{ name = 'ts-plugin-test', location = getPath(os.getenv('NODE_PATH'))} }},
+  cmd = { bin_name, '--stdio', '--tsserver-log-file', os.getenv('HOME') .. '/tsserver.log', '--log-level', '3' }
+}
+```
+然后就可以在代码里通过这个[logger模块](https://github.com/microsoft/TypeScript/blob/v4.4.4/lib/tsserverlibrary.d.ts#L6743)来输出日志了。
+
 ## 意义
 ### 对比其他插件：
 这个是更通用的方案，在所有支持语言服务器的编辑器都可以收益。
@@ -71,3 +102,12 @@ function init(modules: { typescript: typeof import("typescript/lib/tsserverlibra
 ### 重构功能对比`babel-transformer`和`typesccript-transformer`
 1. 场景不一样。当我们明确知道需要改动什么，并且要修改`js`或`ts`语法，可以使用`transformer`。如果是一些小优化，或者说是没有强制使用的规范，比如`class component`和`functional component`，我们是根据具体情况使用的，再者是我们要第一时间知道我们的`refactor`具体做了什么，判断`refactor`合理与否，我们需要使用`typescript plugin`
 2. `typescript plugin`作用于编辑过程，只需要某个人修改一次就不需要再做处理了。`transformer`每次编译都会处理。
+
+## 一些资源
+
+[关于ast](https://medium.com/basecs/leveling-up-ones-parsing-game-with-asts-d7a6fc2400ff)
+[入门demo](https://juejin.cn/post/6942380528456695844) 是带我入门的一篇blog
+[lsp specifications](https://microsoft.github.io/language-server-protocol/specifications/specification-current/) `languager server protocol`语言服务协议规范
+[Write a typescript plugin](https://github.com/microsoft/TypeScript/wiki/Writing-a-Language-Service-Plugin)官方`typescript plugin`文档，比较简陋
+[ast查看器](https://astexplorer.net/) 很有用，编写插件全靠它
+[typescript languager server](https://github.com/typescript-language-server/typescript-language-server) 对`tsserver`包装成一个基于`lsp`规范的语言服务器。比较好笑的是，`tsserver`并没有完全按照`lsp`规范，所以需要一层包装。应该是因为先有`tsserver`，然后再从`tsserver`抽离出`lsp`规范。
