@@ -1,6 +1,6 @@
 import type * as ts from "typescript/lib/tsserverlibrary"
 import 'open-typescript'
-import { ACTIONS } from './const'
+import { ACTIONS, refactorName } from './const'
 
 export default class StringLiteralEnumPlugin {
   private info?: ts.server.PluginCreateInfo
@@ -65,13 +65,14 @@ export default class StringLiteralEnumPlugin {
         this.log(Object.values(ACTIONS).filter(_ => _.match(this.typescript, currentToken)).map(_ => _.info))
         return [
           {
-            name: 'MyTsPlugin',
+            name: refactorName,
             description: 'MyTsPlugin desc',
             actions: Object.values(ACTIONS).filter(_ => _.match(this.typescript, currentToken)).map(_ => _.info)
           }
         ]
       },
-      getEditsForRefactor: (fileName, formatOptions, positionOrRange, refactor, actionName, preferences) => {
+      getEditsForRefactor: (fileName: string, formatOptions: ts.FormatCodeSettings, positionOrRange: number | ts.TextRange, refactor: string, actionName: string, preferences: ts.UserPreferences) => {
+        if (refactorName !== refactor) return
         // 初始化上下文，暂时不知道有什么用，传就是
         const formatContext = this.typescript.formatting.getFormatContext(
           formatOptions,
@@ -88,14 +89,14 @@ export default class StringLiteralEnumPlugin {
           return undefined
         }
 
-        const { file, checker } = context
+        const { file } = context
         // 获取当前节点
         const currentToken = this.getTargetInfo(file, this.getPositionOfPositionOrRange(positionOrRange))
         this.log('kindkind: ' + currentToken.kind)
         const ts = this.typescript
 
         // 将函数表达式转换成箭头函数
-        if (ACTIONS.FunctionExpressionToArrowFunction.match(ts, currentToken)) {
+        if (ACTIONS.FunctionExpressionToArrowFunction.info.name === actionName && ACTIONS.FunctionExpressionToArrowFunction.match(ts, currentToken)) {
           return {
             edits: this.typescript.textChanges.ChangeTracker.with(textChangesContext, function(changeTracker) {
               changeTracker.replaceNode(file, currentToken.parent, ts.factory.createArrowFunction(undefined, undefined, currentToken.parent.parameters, undefined, undefined, currentToken.parent.body))
@@ -104,10 +105,10 @@ export default class StringLiteralEnumPlugin {
         }
 
         // 简单测试 修改标识符名字
-        if (ACTIONS.ChangeIdentifierName.match(ts, currentToken)) {
+        if (ACTIONS.ChangeIdentifierName.info.name === actionName && ACTIONS.ChangeIdentifierName.match(ts, currentToken)) {
           return {
             edits: this.typescript.textChanges.ChangeTracker.with(textChangesContext, function(changeTracker) {
-              changeTracker.replaceNode(file, currentToken, ts.createIdentifier('hello // abc'))
+              changeTracker.replaceNode(file, currentToken, ts.createIdentifier('hello'))
             })
           }
         }
