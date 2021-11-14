@@ -20,3 +20,5 @@ export const ACTIONS = {
     }
   }
 }
+
+export const refactorName = 'MyTsPluginRefactor'
