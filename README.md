@@ -27,7 +27,7 @@ lsp后端收到并分析返回结果（比如得到补全列表，得到定义�
 编辑器前端通过自己的ui系统展示结果，并等待用户其他操作
 
 ### 简单例子
-```
+```Typescript
 function init(modules: { typescript: typeof import("typescript/lib/tsserverlibrary") }) {
   const ts = modules.typescript;
 
