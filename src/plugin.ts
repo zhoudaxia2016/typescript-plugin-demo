@@ -28,8 +28,8 @@ export default class StringLiteralEnumPlugin {
       : positionOrRange.pos
   }
 
-  getRefactorContext(fileName: string, info: ts.server.PluginCreateInfo) {
-    const program = info.languageService.getProgram()
+  getRefactorContext(fileName: string) {
+    const program = this.info?.languageService.getProgram()
     if (!program) {
       this.log("Cannot find program")
       return undefined
@@ -51,10 +51,37 @@ export default class StringLiteralEnumPlugin {
 
   create(info: ts.server.PluginCreateInfo) {
     this.info = info
+    const getSuggestionDiagnostics = info.languageService.getSuggestionDiagnostics
     return {
       ...info.languageService,
+      // 禁止使用中文字符串
+      getSuggestionDiagnostics: (fileName) => {
+        const context = this.getRefactorContext(fileName)
+        if (!context) {
+          this.log("Cannot construct refactor context")
+          return undefined
+        }
+        const { file } = context
+        const myDiag: ts.DiagnosticWithLocation[] = []
+        const pat = new RegExp("[\u4E00-\u9FA5]+")
+        let travel = node => {
+          if(this.typescript.isStringLiteral(node) && pat.test(node.text)) {
+            myDiag.push(this.typescript.createDiagnosticForNode(node, {
+              message: '不能使用中文',
+              key: 'key',
+              category: this.typescript.DiagnosticCategory.Error,
+              code: 11222
+            }))
+          } else {
+            this.typescript.forEachChild(node, travel)
+          }
+        }
+        this.typescript.forEachChild(file, travel)
+        let diagnostics = getSuggestionDiagnostics(fileName)
+        return diagnostics.concat(myDiag)
+      },
       getApplicableRefactors: (fileName: string, positionOrRange: number | ts.TextRange) => {
-        const context = this.getRefactorContext(fileName, info)
+        const context = this.getRefactorContext(fileName)
         if (!context) {
           this.log("Cannot construct refactor context")
           return undefined
@@ -82,7 +109,7 @@ export default class StringLiteralEnumPlugin {
           host: info.languageServiceHost,
           preferences: preferences || {}
         }
-        const context = this.getRefactorContext(fileName, info)
+        const context = this.getRefactorContext(fileName)
         if (!context) {
           this.log("Cannot construct refactor context")
           return undefined
@@ -112,14 +139,50 @@ export default class StringLiteralEnumPlugin {
           }
         }
 
+        // 添加光标下的标识符作为函数参数
         if (ACTIONS.AddFunctionParameter.info.name === actionName && ACTIONS.AddFunctionParameter.match(ts, currentToken)) {
           return {
             edits: this.typescript.textChanges.ChangeTracker.with(textChangesContext, function(changeTracker) {
-              // TODO 删除as
               const functionDeclaration = ACTIONS.AddFunctionParameter.matchReturnNode(ts, currentToken) as ts.FunctionDeclaration
               const parameter = ts.factory.createParameterDeclaration(undefined, undefined, undefined, currentToken.escapedText.toString(), undefined, undefined)
               changeTracker.replaceNode(file, functionDeclaration, ts.updateFunctionDeclaration(functionDeclaration, undefined, undefined, undefined, functionDeclaration.name, undefined, [...functionDeclaration.parameters, parameter], undefined, functionDeclaration.body))
             })
+          }
+        }
+
+        // 将commonjs转换成es6 module
+        if (ACTIONS.ConvertRequireToImport.info.name === actionName) {
+          const requireCall = ACTIONS.ConvertRequireToImport.match(ts, currentToken)
+          if (requireCall && requireCall.parent && ts.isVariableDeclaration(requireCall.parent)) {
+            const variableDeclaration = requireCall.parent
+            const nameStringLiteral = requireCall.arguments[0]
+            const requireName = variableDeclaration.name as ts.ObjectBindingPattern
+            this.log('kind' + variableDeclaration.kind)
+            const importClause = ts.factory.createImportClause(
+              false,
+              undefined,
+              ts.factory.createNamedImports(
+                requireName.elements.map(_ => {
+                  return ts.factory.createImportSpecifier(
+                    // @ts-ignore
+                    _.propertyName && ts.factory.createIdentifier(_.propertyName.escapedText),
+                    // @ts-ignore
+                    _.name && ts.factory.createIdentifier(_.name.escapedText)
+                  )
+                })
+              )
+            )
+            const importStatement = ts.factory.createImportDeclaration(
+              undefined,
+              undefined,
+              importClause,
+              nameStringLiteral
+            )
+            return {
+              edits: this.typescript.textChanges.ChangeTracker.with(textChangesContext, function(changeTracker) {
+                changeTracker.deleteNode(file, variableDeclaration)
+              })
+            }
           }
         }
       }

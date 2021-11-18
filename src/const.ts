@@ -34,6 +34,18 @@ export const ACTIONS = {
       name: 'Add a parameter for the function',
       description: 'Add a parameter for the function'
     }
+  },
+  ConvertRequireToImport: {
+    match(typescript: typeof ts, token: ts.Node): ts.CallExpression | undefined {
+      if (typescript.isIdentifier(token) || typescript.isStringLiteral(token)) {
+        if (token.parent && typescript.isRequireCall(token.parent, true))
+          return token.parent
+      }
+    },
+    info: {
+      name: 'ConvertRequireToImport',
+      description: 'Convert a require call to import declaration'
+    }
   }
 }
 
