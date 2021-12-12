@@ -7,10 +7,10 @@
         "target": "ESNext",
         "module": "commonjs",
         "outDir": "dist",
-        "declaration": true,
         "sourceMap": true
     },
     "include": [
-        "src"
+        "src/*",
+        "./global.d.ts"
     ]
 }
