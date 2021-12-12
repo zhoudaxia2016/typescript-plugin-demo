@@ -1,5 +1,4 @@
 import type * as ts from "typescript/lib/tsserverlibrary"
-import 'open-typescript'
 
 function matchReturnNode(typescript: typeof ts, token: ts.Node) {
   if (typescript.isIdentifier(token))
@@ -35,16 +34,13 @@ export const ACTIONS = {
       description: 'Add a parameter for the function'
     }
   },
-  ConvertRequireToImport: {
-    match(typescript: typeof ts, token: ts.Node): ts.CallExpression | undefined {
-      if (typescript.isIdentifier(token) || typescript.isStringLiteral(token)) {
-        if (token.parent && typescript.isRequireCall(token.parent, true))
-          return token.parent
-      }
+  AddValueComment: {
+    match(typescript: typeof ts, token: ts.Node): token is ts.Identifier {
+      return typescript.isIdentifier(token)
     },
     info: {
-      name: 'ConvertRequireToImport',
-      description: 'Convert a require call to import declaration'
+      name: 'Add comment for identifier value',
+      description: 'Add comment for identifier value'
     }
   }
 }

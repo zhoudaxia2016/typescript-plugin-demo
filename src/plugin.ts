@@ -1,5 +1,4 @@
 import type * as ts from "typescript/lib/tsserverlibrary"
-import 'open-typescript'
 import { ACTIONS, refactorName } from './const'
 
 export default class StringLiteralEnumPlugin {
@@ -115,7 +114,7 @@ export default class StringLiteralEnumPlugin {
           return undefined
         }
 
-        const { file } = context
+        const { file, checker } = context
         // 获取当前节点
         const currentToken = this.getTargetInfo(file, this.getPositionOfPositionOrRange(positionOrRange))
         this.log('kindkind: ' + currentToken.kind)
@@ -150,37 +149,17 @@ export default class StringLiteralEnumPlugin {
           }
         }
 
-        // 将commonjs转换成es6 module
-        if (ACTIONS.ConvertRequireToImport.info.name === actionName) {
-          const requireCall = ACTIONS.ConvertRequireToImport.match(ts, currentToken)
-          if (requireCall && requireCall.parent && ts.isVariableDeclaration(requireCall.parent)) {
-            const variableDeclaration = requireCall.parent
-            const nameStringLiteral = requireCall.arguments[0]
-            const requireName = variableDeclaration.name as ts.ObjectBindingPattern
-            this.log('kind' + variableDeclaration.kind)
-            const importClause = ts.factory.createImportClause(
-              false,
-              undefined,
-              ts.factory.createNamedImports(
-                requireName.elements.map(_ => {
-                  return ts.factory.createImportSpecifier(
-                    // @ts-ignore
-                    _.propertyName && ts.factory.createIdentifier(_.propertyName.escapedText),
-                    // @ts-ignore
-                    _.name && ts.factory.createIdentifier(_.name.escapedText)
-                  )
-                })
-              )
-            )
-            const importStatement = ts.factory.createImportDeclaration(
-              undefined,
-              undefined,
-              importClause,
-              nameStringLiteral
-            )
+        // 给变量添加值注释
+        if (ACTIONS.AddValueComment.info.name === actionName && ACTIONS.AddValueComment.match(ts, currentToken)) {
+          const pos = this.getPositionOfPositionOrRange(positionOrRange)
+          const token = this.getTargetInfo(file, pos)
+          let s = checker.getSymbolAtLocation(token)
+          if (s) {
+            const varDecl = s.getDeclarations()![0]
+            const comment = varDecl?.getText().split(/:\s?/)[1].replace(/^'|'$/g, '') || ''
             return {
               edits: this.typescript.textChanges.ChangeTracker.with(textChangesContext, function(changeTracker) {
-                changeTracker.deleteNode(file, variableDeclaration)
+                changeTracker.replaceNode(file, token, ts.addSyntheticTrailingComment(token, ts.SyntaxKind.MultiLineCommentTrivia, comment, false))
               })
             }
           }
