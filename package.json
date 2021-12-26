@@ -1,10 +1,8 @@
 {
-  "name": "ts-plugin-test",
-  "version": "0.0.3",
+  "name": "lsp-box",
+  "version": "0.0.1",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "repository": "git@github.com:HearTao/ts-string-literal-enum-plugin.git",
-  "author": "kingwl <kingwenlu@gmail.com>",
   "license": "MIT",
   "devDependencies": {
     "@types/microsoft__typescript-etw": "^0.1.1",
