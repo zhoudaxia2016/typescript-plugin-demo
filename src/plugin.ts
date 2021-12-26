@@ -1,12 +1,12 @@
 import type * as ts from "typescript/lib/tsserverlibrary"
 import { ACTIONS, refactorName } from './const'
 
-export default class StringLiteralEnumPlugin {
+export default class LspPlugin {
   private info?: ts.server.PluginCreateInfo
   constructor(private readonly typescript: typeof ts) { }
 
   log(info: any) {
-    this.info?.project.projectService.logger.info('[**MyTsPlugin**]: ' + JSON.stringify(info))
+    this.info?.project.projectService.logger.info('[**lsp-box**]: ' + JSON.stringify(info))
   }
 
   getTargetInfo(
@@ -48,9 +48,22 @@ export default class StringLiteralEnumPlugin {
     }
   }
 
+  initLanguageVerifyConfig(config) {
+    return {
+      ignoreFilePatterns: config.ignoreFilePatterns || [],
+      commentSwitch: {
+        enabled: !!config.commentOn,
+        on: config.commentOn,
+        off: config.commentOff
+      }
+    }
+  }
+
   create(info: ts.server.PluginCreateInfo) {
     this.info = info
     const getSuggestionDiagnostics = info.languageService.getSuggestionDiagnostics
+    const languageVerifyConfig = this.initLanguageVerifyConfig(info.config.languageVerify)
+    this.log(languageVerifyConfig)
     return {
       ...info.languageService,
       // 禁止使用中文字符串
@@ -63,8 +76,22 @@ export default class StringLiteralEnumPlugin {
         const { file } = context
         const myDiag: ts.DiagnosticWithLocation[] = []
         const pat = new RegExp("[\u4E00-\u9FA5]+")
-        let travel = node => {
-          if(this.typescript.isStringLiteral(node) && pat.test(node.text)) {
+        let langOn = true
+        let travel = (node: ts.Node) => {
+          if (languageVerifyConfig.commentSwitch.enabled) {
+            const commentRange = this.typescript.getLeadingCommentRanges(file.getFullText(), node.getFullStart())?.[0]
+            if (commentRange) {
+              if (file.getFullText().slice(commentRange.pos, commentRange.end).includes(languageVerifyConfig.commentSwitch.on)) langOn = true
+              if (file.getFullText().slice(commentRange.pos, commentRange.end).includes(languageVerifyConfig.commentSwitch.off)) langOn = false
+            }
+          }
+          const isIgnore = languageVerifyConfig.ignoreFilePatterns.some(_ => file.path.includes(_))
+          const isConsoleExpression = this.typescript.isCallExpression(node.parent) &&
+            this.typescript.isPropertyAccessExpression(node.parent.getChildAt(0)) &&
+            node.parent.getChildAt(0).getText().indexOf('console.') === 0
+          if(langOn && !isIgnore &&
+            (this.typescript.isJsxText(node) || (this.typescript.isStringLiteral(node)) && !isConsoleExpression) &&
+            pat.test(node.text)) {
             myDiag.push(this.typescript.createDiagnosticForNode(node, {
               message: '不能使用中文',
               key: 'key',
@@ -129,15 +156,6 @@ export default class StringLiteralEnumPlugin {
           }
         }
 
-        // 简单测试 修改标识符名字
-        if (ACTIONS.ChangeIdentifierName.info.name === actionName && ACTIONS.ChangeIdentifierName.match(ts, currentToken)) {
-          return {
-            edits: this.typescript.textChanges.ChangeTracker.with(textChangesContext, function(changeTracker) {
-              changeTracker.replaceNode(file, currentToken, ts.createIdentifier('hello'))
-            })
-          }
-        }
-
         // 添加光标下的标识符作为函数参数
         if (ACTIONS.AddFunctionParameter.info.name === actionName && ACTIONS.AddFunctionParameter.match(ts, currentToken)) {
           return {
@@ -152,10 +170,16 @@ export default class StringLiteralEnumPlugin {
         // 给变量添加值注释
         if (ACTIONS.AddValueComment.info.name === actionName && ACTIONS.AddValueComment.match(ts, currentToken)) {
           const pos = this.getPositionOfPositionOrRange(positionOrRange)
-          const token = this.getTargetInfo(file, pos)
+          let token = this.getTargetInfo(file, pos)
+          this.log(token.getText())
+          if (token.parent.getChildAt(0) === token) {
+            token = token.parent.getChildAt(2)
+          }
+          this.log(token.getText())
           let s = checker.getSymbolAtLocation(token)
           if (s) {
             const varDecl = s.getDeclarations()![0]
+            // varDecl.getText() 返回 checkRecord: '查看记录详情'
             const comment = varDecl?.getText().split(/:\s?/)[1].replace(/^'|'$/g, '') || ''
             return {
               edits: this.typescript.textChanges.ChangeTracker.with(textChangesContext, function(changeTracker) {

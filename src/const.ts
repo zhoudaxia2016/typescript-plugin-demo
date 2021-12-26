@@ -15,15 +15,6 @@ export const ACTIONS = {
       description: 'Transform a function expression to a arrow function'
     }
   },
-  ChangeIdentifierName: {
-    match(typescript: typeof ts, token: ts.Node) {
-      return typescript.isIdentifier(token)
-    },
-    info: {
-      name: 'Change Identifier name',
-      description: 'Change Identifier name'
-    }
-  },
   AddFunctionParameter: {
     match(typescript: typeof ts, token: ts.Node): token is ts.Identifier {
       return !!matchReturnNode(typescript, token)
@@ -36,7 +27,7 @@ export const ACTIONS = {
   },
   AddValueComment: {
     match(typescript: typeof ts, token: ts.Node): token is ts.Identifier {
-      return typescript.isIdentifier(token)
+      return typescript.isIdentifier(token) && token.parent && typescript.isPropertyAccessExpression(token.parent) && token.parent.getChildAt(0).getText() === 'lang'
     },
     info: {
       name: 'Add comment for identifier value',
