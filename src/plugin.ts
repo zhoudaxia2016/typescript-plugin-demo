@@ -1,5 +1,6 @@
 import type * as ts from "typescript/lib/tsserverlibrary"
 import { ACTIONS, refactorName } from './const'
+import tsModule from 'typescript/lib/tsserverlibrary';
 
 export default class LspPlugin {
   private info?: ts.server.PluginCreateInfo
@@ -62,8 +63,40 @@ export default class LspPlugin {
   create(info: ts.server.PluginCreateInfo) {
     this.info = info
     const getSuggestionDiagnostics = info.languageService.getSuggestionDiagnostics
-    const languageVerifyConfig = this.initLanguageVerifyConfig(info.config.languageVerify)
+    const languageVerifyConfig = this.initLanguageVerifyConfig(info.config.languageVerify || {})
     this.log(languageVerifyConfig)
+    if (info.languageServiceHost.resolveModuleNames) {
+      const _resolveModuleNames =
+        info.languageServiceHost.resolveModuleNames.bind(
+          info.languageServiceHost,
+        );
+
+      info.languageServiceHost.resolveModuleNames = (
+        moduleNames,
+        containingFile,
+        ...rest
+      ) => {
+        const resolvedModules = _resolveModuleNames(
+          moduleNames,
+          containingFile,
+          ...rest,
+        );
+
+        return moduleNames.map((moduleName, index) => {
+          const pat = /^\w+-loader!/
+          if (pat.test(moduleName)) {
+            let a = info.project.getResolvedModuleWithFailedLookupLocationsFromCache(
+              moduleName,
+              containingFile,
+            );
+            moduleName = moduleName.replace(pat, '')
+            const resolvedModules = _resolveModuleNames([moduleName], containingFile, ...rest)
+            return resolvedModules[0]
+          }
+          return resolvedModules[index]
+        })
+      }
+    }
     return {
       ...info.languageService,
       // 禁止使用中文字符串
